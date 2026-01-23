@@ -6,17 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class GameSession extends Model
 {
-
     protected $fillable = [
         'user_id',
         'game_id',
         'current_node_id',
         'mode',
         'state_history',
+        'dynamic_state',
     ];
 
     protected $casts = [
         'state_history' => 'array',
+        'dynamic_state' => 'array',
     ];
 
     public function user()
@@ -33,5 +34,4 @@ class GameSession extends Model
     {
         return $this->belongsTo(StoryNode::class, 'current_node_id');
     }
-
 }

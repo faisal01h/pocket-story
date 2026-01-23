@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 
 class GameController extends Controller
 {
-
     /**
      * Display a listing of the resource.
      */
@@ -34,6 +33,9 @@ class GameController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'settings' => 'nullable|array',
+            'llm_guidelines' => 'nullable|string',
+            'is_public' => 'boolean',
+            'slug' => 'nullable|string|unique:games,slug',
         ]);
 
         $game = $request->user()->games()->create($validated);
@@ -47,11 +49,17 @@ class GameController extends Controller
     public function show(\App\Models\Game $game)
     {
         \Illuminate\Support\Facades\Gate::authorize('view', $game);
-        
+
         $game->load(['storyNodes.choices']);
 
         return \Inertia\Inertia::render('Games/Editor/Show', [
-            'game' => $game,
+            'game' => array_merge($game->toArray(), [
+                'story_nodes' => $game->storyNodes->map(function ($node) {
+                    return array_merge($node->toArray(), [
+                        'choices' => $node->choices->toArray(),
+                    ]);
+                })->toArray(),
+            ]),
         ]);
     }
 
@@ -61,8 +69,9 @@ class GameController extends Controller
     public function edit(\App\Models\Game $game)
     {
         \Illuminate\Support\Facades\Gate::authorize('update', $game);
+
         return \Inertia\Inertia::render('Games/Edit', [
-            'game' => $game
+            'game' => $game,
         ]);
     }
 
@@ -77,6 +86,9 @@ class GameController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'settings' => 'nullable|array',
+            'llm_guidelines' => 'nullable|string',
+            'is_public' => 'boolean',
+            'slug' => 'nullable|string|unique:games,slug,' . $game->id,
         ]);
 
         $game->update($validated);
@@ -91,6 +103,7 @@ class GameController extends Controller
     {
         \Illuminate\Support\Facades\Gate::authorize('delete', $game);
         $game->delete();
+
         return redirect()->route('games.index');
     }
 }

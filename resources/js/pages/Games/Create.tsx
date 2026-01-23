@@ -1,10 +1,10 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/layouts/app-layout';
 import { Head, useForm } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { store } from '@/routes/games';
 
 export default function Create() {
     const { data, setData, post, processing, errors } = useForm({
@@ -18,7 +18,7 @@ export default function Create() {
 
     const submit = (e) => {
         e.preventDefault();
-        post(route('games.store'));
+        post(store.url());
     };
 
     return (
@@ -29,7 +29,7 @@ export default function Create() {
 
             <div className="py-12">
                 <div className="mx-auto max-w-2xl sm:px-6 lg:px-8">
-                    <Card>
+                    <Card className="py-5">
                         <CardHeader>
                             <CardTitle>Game Details</CardTitle>
                         </CardHeader>
@@ -49,7 +49,7 @@ export default function Create() {
 
                                 <div>
                                     <Label htmlFor="description">Description</Label>
-                                    <Textarea
+                                    <Input
                                         id="description"
                                         value={data.description}
                                         onChange={(e) => setData('description', e.target.value)}

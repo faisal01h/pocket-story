@@ -1,7 +1,9 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/layouts/app-layout';
 import { Head, Link } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { create, show, edit } from '@/routes/games';
+import { index as playIndex } from '@/routes/games/play';
 
 export default function Index({ games }) {
     return (
@@ -13,7 +15,7 @@ export default function Index({ games }) {
             <div className="py-12">
                 <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
                     <div className="flex justify-end mb-6">
-                        <Link href={route('games.create')}>
+                        <Link href={create.url()}>
                             <Button>Create New Game</Button>
                         </Link>
                     </div>
@@ -25,16 +27,16 @@ export default function Index({ games }) {
                             </div>
                         ) : (
                             games.map((game) => (
-                                <Card key={game.id}>
+                                <Card key={game.id} className='py-5'>
                                     <CardHeader>
                                         <CardTitle>{game.title}</CardTitle>
                                         <CardDescription>{game.description || 'No description'}</CardDescription>
                                     </CardHeader>
                                     <CardFooter className="flex justify-between">
-                                        <Link href={route('games.show', game.id)}>
+                                        <Link href={edit.url(game.id)}>
                                             <Button variant="outline">Edit</Button>
                                         </Link>
-                                        <Link href={route('games.play.show', game.id)}>
+                                        <Link href={playIndex.url(game.id)}>
                                             <Button>Play</Button>
                                         </Link>
                                     </CardFooter>
@@ -44,6 +46,6 @@ export default function Index({ games }) {
                     </div>
                 </div>
             </div>
-        </AuthenticatedLayout>
+        </AuthenticatedLayout >
     );
 }

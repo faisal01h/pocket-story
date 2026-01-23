@@ -11,9 +11,10 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import games from '@/routes/games';
 import type { NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, Activity, ShieldCheck, Compass, Joystick } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -21,6 +22,26 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Discover',
+        href: '/discover',
+        icon: Compass,
+    },
+    {
+        title: 'Games',
+        href: games.index(),
+        icon: Joystick,
+    },
+    {
+        title: 'LLM Requests',
+        href: '/admin/llm-requests',
+        icon: Activity,
+    },
+    {
+        title: 'LLM Limits',
+        href: '/admin/llm-limits',
+        icon: ShieldCheck,
     },
 ];
 

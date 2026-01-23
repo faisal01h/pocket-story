@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Game;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class GamePolicy
 {
@@ -13,7 +12,7 @@ class GamePolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -21,7 +20,7 @@ class GamePolicy
      */
     public function view(User $user, Game $game): bool
     {
-        return false;
+        return $user->id === $game->user_id;
     }
 
     /**
@@ -29,7 +28,7 @@ class GamePolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -37,7 +36,7 @@ class GamePolicy
      */
     public function update(User $user, Game $game): bool
     {
-        return false;
+        return $user->id === $game->user_id;
     }
 
     /**
@@ -45,7 +44,7 @@ class GamePolicy
      */
     public function delete(User $user, Game $game): bool
     {
-        return false;
+        return $user->id === $game->user_id;
     }
 
     /**
