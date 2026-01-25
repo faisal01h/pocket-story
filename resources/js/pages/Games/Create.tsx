@@ -13,6 +13,7 @@ export default function Create() {
         settings: {
             default_mode: 'standard', // standard or llm
             llm_enabled: false,
+            allow_llm_regeneration: false,
         },
     });
 
@@ -68,6 +69,19 @@ export default function Create() {
                                     />
                                     <Label htmlFor="llm_enabled">Enable LLM Features (Dynamic Storytelling)</Label>
                                 </div>
+
+                                {data.settings.llm_enabled && (
+                                    <div className="flex items-center space-x-2 pl-6">
+                                        <input
+                                            type="checkbox"
+                                            id="allow_llm_regeneration"
+                                            className="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                            checked={data.settings.allow_llm_regeneration}
+                                            onChange={(e) => setData('settings', { ...data.settings, allow_llm_regeneration: e.target.checked })}
+                                        />
+                                        <Label htmlFor="allow_llm_regeneration">Allow LLM Response Regeneration</Label>
+                                    </div>
+                                )}
 
                                 <div className="flex justify-end">
                                     <Button type="submit" disabled={processing}>

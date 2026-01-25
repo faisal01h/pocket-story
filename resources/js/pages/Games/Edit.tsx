@@ -14,6 +14,7 @@ export default function Edit({ game }) {
         settings: {
             default_mode: game.settings?.default_mode || 'standard',
             llm_enabled: game.settings?.llm_enabled || false,
+            allow_llm_regeneration: game.settings?.allow_llm_regeneration || false,
         },
         llm_guidelines: game.llm_guidelines || '',
         is_public: !!game.is_public,
@@ -102,6 +103,19 @@ export default function Edit({ game }) {
                                         />
                                         <Label htmlFor="llm_enabled">Enable LLM Features (Dynamic Storytelling)</Label>
                                     </div>
+
+                                    {data.settings.llm_enabled && (
+                                        <div className="flex items-center space-x-2 pl-6">
+                                            <input
+                                                type="checkbox"
+                                                id="allow_llm_regeneration"
+                                                className="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                                                checked={data.settings.allow_llm_regeneration}
+                                                onChange={(e) => setData('settings', { ...data.settings, allow_llm_regeneration: e.target.checked })}
+                                            />
+                                            <Label htmlFor="allow_llm_regeneration">Allow LLM Response Regeneration</Label>
+                                        </div>
+                                    )}
 
                                     {data.settings.llm_enabled && (
                                         <div className="pl-6 border-l-2 border-indigo-100 dark:border-indigo-900 ml-1">

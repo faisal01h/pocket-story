@@ -3,25 +3,34 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\RemoteLlmRequest;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class LlmRequestController extends Controller
 {
-    public function index()
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(): Response
     {
-        $requests = \App\Models\RemoteLlmRequest::with('user')
+        $requests = RemoteLlmRequest::with(['user', 'llmModel.provider'])
             ->latest()
             ->paginate(15);
 
-        return \Inertia\Inertia::render('Admin/LlmRequests/Index', [
+        return Inertia::render('Admin/LlmRequests/Index', [
             'requests' => $requests,
         ]);
     }
 
-    public function show(\App\Models\RemoteLlmRequest $llmRequest)
+    /**
+     * Display the specified resource.
+     */
+    public function show(RemoteLlmRequest $llmRequest): Response
     {
-        $llmRequest->load(['user', 'gameSession.game']);
+        $llmRequest->load(['user', 'gameSession.game', 'llmModel.provider']);
 
-        return \Inertia\Inertia::render('Admin/LlmRequests/Show', [
+        return Inertia::render('Admin/LlmRequests/Show', [
             'request' => $llmRequest,
         ]);
     }

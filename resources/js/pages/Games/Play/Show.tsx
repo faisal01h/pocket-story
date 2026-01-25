@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useState, useEffect, useRef } from 'react';
-import { action, restart, switchMode } from '@/routes/games/play';
+import { action, restart, switchMode, regenerate } from '@/routes/games/play';
 import { RefreshCw, Send, History, Cpu, User as UserIcon, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import { BreadcrumbItem } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -13,14 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export default function Play({ game, session, currentNode, dynamicState, errors }: { game: any; session: any; currentNode: any; dynamicState: any }) {
+export default function Play({ game, session, currentNode, dynamicState, availableModels, errors }: { game: any; session: any; currentNode: any; dynamicState: any; availableModels: any[]; errors?: any }) {
     const [inputText, setInputText] = useState('');
-    const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+    const [selectedModel, setSelectedModel] = useState(availableModels[0]?.identifier || 'gemini-2.5-flash');
     const [showHistory, setShowHistory] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    const history = session.state_history || [];
+    const history = session.state_histories || [];
     const displayContent = dynamicState?.content || currentNode?.content || "The story continues...";
     const displayChoices = dynamicState?.choices || currentNode?.choices || [];
 
@@ -73,6 +73,13 @@ export default function Play({ game, session, currentNode, dynamicState, errors 
 
     const handleModeSwitch = (newMode: 'standard' | 'llm') => {
         router.post(switchMode.url([game.id, session.id]), { mode: newMode });
+    };
+
+    const handleRegenerate = () => {
+        if (isProcessing) return;
+        router.post(regenerate.url([game.id, session.id]), {
+            model: selectedModel,
+        });
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -177,6 +184,20 @@ export default function Play({ game, session, currentNode, dynamicState, errors 
                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
                                     </div>
 
+                                    {game.settings?.allow_llm_regeneration && session.mode === 'llm' && !isProcessing && (
+                                        <div className="mt-4 flex justify-end">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleRegenerate}
+                                                className="h-8 gap-2 text-[11px] border-indigo-200 hover:bg-indigo-50 dark:border-indigo-900/50 dark:hover:bg-indigo-900/20"
+                                            >
+                                                <RefreshCw className="h-3 w-3" />
+                                                Regenerate Response
+                                            </Button>
+                                        </div>
+                                    )}
+
                                     {isProcessing && (
                                         <div className="mt-8 flex items-center gap-3 text-indigo-500 font-medium italic animate-pulse">
                                             <RefreshCw className="h-4 w-4 animate-spin" />
@@ -249,9 +270,11 @@ export default function Play({ game, session, currentNode, dynamicState, errors 
                                                     <SelectValue placeholder="Select Model" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
-                                                    <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-                                                    <SelectItem value="gemini-3-pro-preview">Gemini 3.0 Pro (Preview)</SelectItem>
+                                                    {availableModels.map((m) => (
+                                                        <SelectItem key={m.id} value={m.identifier}>
+                                                            {m.name}
+                                                        </SelectItem>
+                                                    ))}
                                                 </SelectContent>
                                             </Select>
                                         </div>

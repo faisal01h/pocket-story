@@ -41,8 +41,8 @@ export default function Index({ requests }: { requests: any }) {
                                                 <td className="px-6 py-4">{request.user?.name || 'Unknown'}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col">
-                                                        <span className="font-medium">{request.model_name}</span>
-                                                        <span className="text-xs text-gray-400">{request.provider}</span>
+                                                        <span className="font-medium">{request.llm_model?.name || 'Unknown Model'}</span>
+                                                        <span className="text-xs text-gray-400">{request.llm_model?.provider?.name || 'Unknown Provider'}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">

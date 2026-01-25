@@ -47,8 +47,8 @@ export default function Show({ request }: { request: any }) {
                                     <div>
                                         <div className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Provider / Model</div>
                                         <div className="flex flex-col gap-1">
-                                            <Badge variant="outline" className="w-fit">{request.provider}</Badge>
-                                            <Badge variant="secondary" className="w-fit">{request.model_name}</Badge>
+                                            <Badge variant="outline" className="w-fit">{request.llm_model?.provider?.name || 'Unknown Provider'}</Badge>
+                                            <Badge variant="secondary" className="w-fit">{request.llm_model?.name || 'Unknown Model'}</Badge>
                                         </div>
                                     </div>
                                 </CardContent>

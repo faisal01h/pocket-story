@@ -35,7 +35,6 @@ class GamePlayController extends Controller
             'user_id' => auth()->id(),
             'current_node_id' => $startNode?->id,
             'mode' => $game->settings['default_mode'] ?? 'standard',
-            'state_history' => [],
         ]);
 
         return new GameSessionResource($session);
@@ -58,7 +57,7 @@ class GamePlayController extends Controller
             }
         }
 
-        $play->load('currentNode.choices');
+        $play->load(['currentNode.choices', 'stateHistories']);
 
         return new GameSessionResource($play);
     }
@@ -96,13 +95,18 @@ class GamePlayController extends Controller
                 ]);
 
                 if ($play->mode === 'llm' && $choiceLabel) {
-                    $history = $play->state_history ?? [];
-                    $history[] = ['role' => 'user', 'content' => $choiceLabel];
-                    $play->update(['state_history' => $history]);
+                    $play->stateHistories()->create([
+                        'role' => 'user',
+                        'content' => $choiceLabel,
+                    ]);
                 }
             }
         } elseif ($validated['action_type'] === 'text' && $play->mode === 'llm') {
-            $historyStr = json_encode($play->state_history);
+            $history = $play->stateHistories;
+            $historyStr = json_encode($history->map(fn ($item) => [
+                'role' => $item->role,
+                'content' => $item->content,
+            ])->toArray());
             $contextNodes = $game->storyNodes()->take(5)->get()->toJson();
 
             try {
@@ -130,13 +134,13 @@ class GamePlayController extends Controller
                 }
 
                 if ($responseContent) {
-                    $history = $play->state_history ?? [];
-                    $history[] = ['role' => 'user', 'content' => $validated['input_text']];
-                    $history[] = ['role' => 'model', 'content' => $responseContent['content']];
+                    $play->stateHistories()->createMany([
+                        ['role' => 'user', 'content' => $validated['input_text']],
+                        ['role' => 'model', 'content' => $responseContent['content']],
+                    ]);
 
                     $play->update([
                         'current_node_id' => null,
-                        'state_history' => $history,
                         'dynamic_state' => $responseContent,
                     ]);
                 }
@@ -157,9 +161,11 @@ class GamePlayController extends Controller
         }
 
         $startNode = $game->storyNodes()->where('is_start_node', true)->first();
+
+        $play->stateHistories()->delete();
+
         $play->update([
             'current_node_id' => $startNode?->id,
-            'state_history' => [],
             'dynamic_state' => null,
         ]);
 

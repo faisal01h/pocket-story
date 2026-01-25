@@ -32,7 +32,6 @@ class GamePlayController extends Controller
             'user_id' => auth()->id(),
             'current_node_id' => $startNode?->id,
             'mode' => $game->settings['default_mode'] ?? 'standard',
-            'state_history' => [],
         ]);
 
         return redirect()->route('games.play.show', [$game->id, $session->id]);
@@ -55,13 +54,18 @@ class GamePlayController extends Controller
             }
         }
 
-        $play->load('currentNode.choices');
+        $play->load(['currentNode.choices', 'stateHistories']);
+
+        $models = \App\Models\LlmModel::where('is_active', true)
+            ->with('provider')
+            ->get();
 
         return \Inertia\Inertia::render('Games/Play/Show', [
             'game' => $game,
             'session' => $play,
             'currentNode' => $play->currentNode,
             'dynamicState' => $play->dynamic_state,
+            'availableModels' => $models,
         ]);
     }
 
@@ -83,78 +87,88 @@ class GamePlayController extends Controller
 
         $session = $play;
 
-        if ($validated['action_type'] === 'choice') {
-            $targetNodeId = $validated['target_node_id'] ?? null;
-            $choiceLabel = null;
+        $targetNodeId = $validated['target_node_id'] ?? null;
+        $choiceLabel = null;
 
-            if (! $targetNodeId && ! empty($validated['choice_id'])) {
-                $choice = \App\Models\Choice::find($validated['choice_id']);
-                $targetNodeId = $choice?->target_node_id;
-                $choiceLabel = $choice?->label;
+        if (! $targetNodeId && ! empty($validated['choice_id'])) {
+            $choice = \App\Models\Choice::find($validated['choice_id']);
+            $targetNodeId = $choice?->target_node_id;
+            $choiceLabel = $choice?->label;
+        }
+
+        if ($targetNodeId) {
+            $session->update([
+                'current_node_id' => $targetNodeId,
+                'dynamic_state' => null, // Clear dynamic state when moving to a predefined node
+            ]);
+
+            // If in LLM mode, we still might want to append this to history
+            if ($session->mode === 'llm' && $choiceLabel) {
+                $session->stateHistories()->create([
+                    'role' => 'user',
+                    'content' => $choiceLabel,
+                ]);
+            }
+        }
+        // LLM Generation
+        $history = $session->stateHistories();
+        
+        // If we have a summary, we only need the recent history (e.g., last 5 messages)
+        if ($session->history_summary) {
+            $history = $history->latest('id')->take(6)->get()->reverse();
+        } else {
+            $history = $history->get();
+        }
+
+        $historyStr = json_encode($history->map(fn ($item) => [
+            'role' => $item->role,
+            'content' => $item->content,
+        ])->toArray());
+
+        // Get nearby nodes for context
+        $contextNodes = $game->storyNodes()->take(5)->get()->toJson(); // Simplified context
+
+        try {
+            $result = $aiService->generateNextState(
+                $historyStr,
+                $validated['input_text'],
+                $contextNodes,
+                $validated['model'] ?? null,
+                auth()->id(),
+                $session->id,
+                $game->llm_guidelines // Pass system prompt
+            );
+
+            $responseContent = isset($result['candidates'][0]['content']['parts'][0]['text'])
+                ? json_decode($result['candidates'][0]['content']['parts'][0]['text'], true)
+                : null;
+
+            // Fallback parsing if JSON inside string
+            if (! $responseContent && isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+                // Try to strip markdown code blocks
+                $raw = $result['candidates'][0]['content']['parts'][0]['text'];
+                $raw = preg_replace('/^```json/', '', $raw);
+                $raw = preg_replace('/```$/', '', $raw);
+                $responseContent = json_decode($raw, true);
             }
 
-            if ($targetNodeId) {
-                $session->update([
-                    'current_node_id' => $targetNodeId,
-                    'dynamic_state' => null, // Clear dynamic state when moving to a predefined node
+            if ($responseContent) {
+                // Update session history
+                $session->stateHistories()->createMany([
+                    ['role' => 'user', 'content' => $validated['input_text']],
+                    ['role' => 'model', 'content' => $responseContent['content']],
                 ]);
 
-                // If in LLM mode, we still might want to append this to history
-                if ($session->mode === 'llm' && $choiceLabel) {
-                    $history = $session->state_history ?? [];
-                    $history[] = ['role' => 'user', 'content' => $choiceLabel];
-                    $session->update(['state_history' => $history]);
-                }
+                $session->update([
+                    'current_node_id' => null, // Dynamic state
+                    'dynamic_state' => $responseContent,
+                ]);
+
+                return back();
             }
-        } elseif ($validated['action_type'] === 'text' && $session->mode === 'llm') {
-            // LLM Generation
-            $historyStr = json_encode($session->state_history); // naive history string
 
-            // Get nearby nodes for context
-            $contextNodes = $game->storyNodes()->take(5)->get()->toJson(); // Simplified context
-
-            try {
-                $result = $aiService->generateNextState(
-                    $historyStr,
-                    $validated['input_text'],
-                    $contextNodes,
-                    $validated['model'] ?? null,
-                    auth()->id(),
-                    $session->id,
-                    $game->llm_guidelines // Pass system prompt
-                );
-
-                $responseContent = isset($result['candidates'][0]['content']['parts'][0]['text'])
-                    ? json_decode($result['candidates'][0]['content']['parts'][0]['text'], true)
-                    : null;
-
-                // Fallback parsing if JSON inside string
-                if (! $responseContent && isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-                    // Try to strip markdown code blocks
-                    $raw = $result['candidates'][0]['content']['parts'][0]['text'];
-                    $raw = preg_replace('/^```json/', '', $raw);
-                    $raw = preg_replace('/```$/', '', $raw);
-                    $responseContent = json_decode($raw, true);
-                }
-
-                if ($responseContent) {
-                    // Update session history
-                    $history = $session->state_history ?? [];
-                    $history[] = ['role' => 'user', 'content' => $validated['input_text']];
-                    $history[] = ['role' => 'model', 'content' => $responseContent['content']];
-
-                    $session->update([
-                        'current_node_id' => null, // Dynamic state
-                        'state_history' => $history,
-                        'dynamic_state' => $responseContent,
-                    ]);
-
-                    return back();
-                }
-
-            } catch (\Exception $e) {
-                return back()->withErrors(['error' => 'AI Generation failed: '.$e->getMessage()]);
-            }
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'AI Generation failed: '.$e->getMessage()]);
         }
 
         return redirect()->back();
@@ -169,9 +183,11 @@ class GamePlayController extends Controller
         }
 
         $startNode = $game->storyNodes()->where('is_start_node', true)->first();
+
+        $play->stateHistories()->delete();
+
         $play->update([
             'current_node_id' => $startNode?->id,
-            'state_history' => [],
             'dynamic_state' => null,
         ]);
 
@@ -193,6 +209,124 @@ class GamePlayController extends Controller
         $play->update([
             'mode' => $validated['mode'],
         ]);
+
+        return redirect()->back();
+    }
+
+    public function regenerate(Request $request, \App\Models\Game $game, \App\Models\GameSession $play, \App\Services\GoogleGenAIService $aiService)
+    {
+        \Illuminate\Support\Facades\Gate::authorize('view', $game);
+
+        if ($play->user_id !== auth()->id() || $play->game_id !== $game->id) {
+            abort(403);
+        }
+
+        if (! ($game->settings['allow_llm_regeneration'] ?? false)) {
+            abort(403, 'Regeneration is not allowed for this game.');
+        }
+
+        $validated = $request->validate([
+            'model' => 'nullable|string',
+        ]);
+
+        // Get the last model response, strictly by ID to avoid timestamp collisions
+        $lastResponse = $play->stateHistories()->latest('id')->first();
+
+        if ($lastResponse && $lastResponse->role === 'model') {
+            // Delete the last model response from DB
+            \Illuminate\Support\Facades\Log::info('Regenerating for session: '.$play->id.' - Deleting model response: '.$lastResponse->id);
+            $lastResponse->delete();
+
+            // Refresh the session's state history to ensure we have the correct items for regeneration
+            $play->unsetRelation('stateHistories');
+            $history = $play->stateHistories;
+
+            // Get the user message that sparked the response we just deleted
+            $lastUserMessage = $history->last();
+
+            if ($lastUserMessage && $lastUserMessage->role === 'user') {
+                \Illuminate\Support\Facades\Log::info('Found user message for regeneration: '.$lastUserMessage->id);
+
+                // The prompt should include everything BEFORE this user message
+                $historyWithoutLastQuery = $play->stateHistories()->where('id', '<', $lastUserMessage->id);
+                
+                if ($play->history_summary) {
+                    $historyWithoutLast = $historyWithoutLastQuery->latest('id')->take(6)->get()->reverse();
+                } else {
+                    $historyWithoutLast = $historyWithoutLastQuery->get();
+                }
+
+                $historyStr = json_encode($historyWithoutLast->map(fn ($item) => [
+                    'role' => $item->role,
+                    'content' => $item->content,
+                ])->toArray());
+
+                $contextNodes = $game->storyNodes()->take(5)->get()->toJson();
+
+                try {
+                    // Prioritize model from request, fallback to last request for this session
+                    $modelIdentifier = $validated['model'] ?? null;
+
+                    if (! $modelIdentifier) {
+                        $lastRequest = \App\Models\RemoteLlmRequest::where('game_session_id', $play->id)
+                            ->whereNotNull('llm_model_id')
+                            ->latest('id')
+                            ->first();
+
+                        $modelIdentifier = $lastRequest?->llmModel?->identifier;
+                    }
+                    \Illuminate\Support\Facades\Log::info('Using model for regeneration: '.($modelIdentifier ?: 'default'));
+
+                    $result = $aiService->generateNextState(
+                        $historyStr,
+                        $lastUserMessage->content,
+                        $contextNodes,
+                        $modelIdentifier,
+                        auth()->id(),
+                        $play->id,
+                        $game->llm_guidelines
+                    );
+
+                    $responseContent = null;
+                    if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+                        $raw = $result['candidates'][0]['content']['parts'][0]['text'];
+                        $raw = preg_replace('/^```json/', '', $raw);
+                        $raw = preg_replace('/```$/', '', $raw);
+                        $responseContent = json_decode($raw, true);
+                    }
+
+                    if ($responseContent) {
+                        $play->stateHistories()->create([
+                            'role' => 'model',
+                            'content' => $responseContent['content'],
+                        ]);
+
+                        $play->update([
+                            'dynamic_state' => $responseContent,
+                        ]);
+
+                        \Illuminate\Support\Facades\Log::info('Regeneration successful for session: '.$play->id);
+
+                        return back()->with('success', 'Response regenerated successfully.');
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Regeneration AI failed: '.$e->getMessage());
+
+                    return back()->withErrors(['error' => 'Regeneration failed: '.$e->getMessage()]);
+                }
+            } else {
+                \Illuminate\Support\Facades\Log::warning('Regeneration fallthrough: last message is not user.', [
+                    'session_id' => $play->id,
+                    'last_role' => $lastUserMessage?->role,
+                    'history_count' => $history->count(),
+                ]);
+            }
+        } else {
+            \Illuminate\Support\Facades\Log::warning('Regeneration fallthrough: last response is not model.', [
+                'session_id' => $play->id,
+                'last_role' => $lastResponse?->role,
+            ]);
+        }
 
         return redirect()->back();
     }

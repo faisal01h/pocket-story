@@ -21,6 +21,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('games/{game}/play/{play}/action', [\App\Http\Controllers\GamePlayController::class, 'action'])->name('games.play.action');
     Route::post('games/{game}/play/{play}/restart', [\App\Http\Controllers\GamePlayController::class, 'restart'])->name('games.play.restart');
     Route::post('games/{game}/play/{play}/switch-mode', [\App\Http\Controllers\GamePlayController::class, 'switchMode'])->name('games.play.switch-mode');
+    Route::post('games/{game}/play/{play}/regenerate', [\App\Http\Controllers\GamePlayController::class, 'regenerate'])->name('games.play.regenerate');
 
     // Admin Routes
     Route::get('admin/llm-requests', [\App\Http\Controllers\Admin\LlmRequestController::class, 'index'])->name('admin.llm-requests.index');
@@ -33,6 +34,43 @@ Route::middleware(['auth', 'verified'])->group(function () {
         'update' => 'admin.llm-limits.update',
         'destroy' => 'admin.llm-limits.destroy',
     ]);
+    Route::resource('admin/redeem-codes', \App\Http\Controllers\Admin\RedeemCodeController::class)->names([
+        'index' => 'admin.redeem-codes.index',
+        'create' => 'admin.redeem-codes.create',
+        'store' => 'admin.redeem-codes.store',
+        'edit' => 'admin.redeem-codes.edit',
+        'update' => 'admin.redeem-codes.update',
+        'destroy' => 'admin.redeem-codes.destroy',
+    ]);
+    Route::resource('admin/roles', \App\Http\Controllers\Admin\RoleController::class)->names([
+        'index' => 'admin.roles.index',
+        'create' => 'admin.roles.create',
+        'store' => 'admin.roles.store',
+        'edit' => 'admin.roles.edit',
+        'update' => 'admin.roles.update',
+        'destroy' => 'admin.roles.destroy',
+    ]);
+    Route::resource('admin/permissions', \App\Http\Controllers\Admin\PermissionController::class)->names([
+        'index' => 'admin.permissions.index',
+        'create' => 'admin.permissions.create',
+        'store' => 'admin.permissions.store',
+        'edit' => 'admin.permissions.edit',
+        'update' => 'admin.permissions.update',
+        'destroy' => 'admin.permissions.destroy',
+    ]);
+    Route::resource('admin/users', \App\Http\Controllers\Admin\UserController::class)->names([
+        'index' => 'admin.users.index',
+        'show' => 'admin.users.show',
+        'edit' => 'admin.users.edit',
+        'update' => 'admin.users.update',
+        'destroy' => 'admin.users.destroy',
+    ]);
+    Route::post('admin/users/{user}/summarize', [\App\Http\Controllers\Admin\UserController::class, 'summarize'])->name('admin.users.summarize');
+
+    Route::get('redeem', function () {
+        return \Inertia\Inertia::render('Dashboard/Redeem');
+    })->name('redeem.index');
+    Route::post('redeem', [\App\Http\Controllers\RedeemCodeController::class, 'redeem'])->name('redeem.store');
 });
 
 require __DIR__.'/settings.php';

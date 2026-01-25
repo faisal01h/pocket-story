@@ -8,7 +8,7 @@ class LlmLimit extends Model
 {
     protected $fillable = [
         'user_id',
-        'model_name',
+        'llm_model_id',
         'period',
         'max_tokens',
         'is_active',
@@ -17,4 +17,10 @@ class LlmLimit extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
-    }}
+    }
+
+    public function llmModel()
+    {
+        return $this->belongsTo(LlmModel::class);
+    }
+}

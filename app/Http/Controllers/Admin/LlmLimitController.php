@@ -12,16 +12,18 @@ class LlmLimitController extends Controller
 {
     public function index()
     {
-        $limits = LlmLimit::with('user')->latest()->paginate(10);
+        $limits = LlmLimit::with(['user', 'llmModel.provider'])->latest()->paginate(10);
+
         return Inertia::render('Admin/LlmLimits/Index', [
-            'limits' => $limits
+            'limits' => $limits,
         ]);
     }
 
     public function create()
     {
         return Inertia::render('Admin/LlmLimits/Create', [
-            'users' => User::all(['id', 'name', 'email'])
+            'users' => User::all(['id', 'name', 'email']),
+            'providers' => \App\Models\LlmProvider::with('models')->where('is_active', true)->get(),
         ]);
     }
 
@@ -29,7 +31,7 @@ class LlmLimitController extends Controller
     {
         $validated = $request->validate([
             'user_id' => 'nullable|exists:users,id',
-            'model_name' => 'nullable|string',
+            'llm_model_id' => 'nullable|exists:llm_models,id',
             'period' => 'required|in:daily,monthly,total',
             'max_tokens' => 'required|integer|min:1',
             'is_active' => 'required|boolean',
@@ -42,9 +44,12 @@ class LlmLimitController extends Controller
 
     public function edit(LlmLimit $llmLimit)
     {
+        $llmLimit->load('llmModel.provider');
+
         return Inertia::render('Admin/LlmLimits/Edit', [
             'limit' => $llmLimit,
-            'users' => User::all(['id', 'name', 'email'])
+            'users' => User::all(['id', 'name', 'email']),
+            'providers' => \App\Models\LlmProvider::with('models')->where('is_active', true)->get(),
         ]);
     }
 
@@ -52,7 +57,7 @@ class LlmLimitController extends Controller
     {
         $validated = $request->validate([
             'user_id' => 'nullable|exists:users,id',
-            'model_name' => 'nullable|string',
+            'llm_model_id' => 'nullable|exists:llm_models,id',
             'period' => 'required|in:daily,monthly,total',
             'max_tokens' => 'required|integer|min:1',
             'is_active' => 'required|boolean',
@@ -66,6 +71,7 @@ class LlmLimitController extends Controller
     public function destroy(LlmLimit $llmLimit)
     {
         $llmLimit->delete();
+
         return redirect()->route('admin.llm-limits.index')->with('success', 'Limit deleted successfully.');
     }
 }

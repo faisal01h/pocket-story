@@ -11,27 +11,67 @@ class GameSession extends Model
         'game_id',
         'current_node_id',
         'mode',
-        'state_history',
         'dynamic_state',
+        'history_summary',
     ];
 
-    protected $casts = [
-        'state_history' => 'array',
-        'dynamic_state' => 'array',
-    ];
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\GameSessionMemory, \App\Models\GameSession>
+     */
+    public function memories(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(GameSessionMemory::class);
+    }
 
-    public function user()
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\GameSessionKnowledge, \App\Models\GameSession>
+     */
+    public function knowledges(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(GameSessionKnowledge::class);
+    }
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'dynamic_state' => 'array',
+        ];
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\GameSession>
+     */
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function game()
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Game, \App\Models\GameSession>
+     */
+    public function game(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(Game::class);
     }
 
-    public function currentNode()
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\StoryNode, \App\Models\GameSession>
+     */
+    public function currentNode(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(StoryNode::class, 'current_node_id');
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\GameSessionStateHistory, \App\Models\GameSession>
+     */
+    public function stateHistories(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(GameSessionStateHistory::class);
     }
 }

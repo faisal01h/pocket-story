@@ -19,7 +19,7 @@ class GameSessionResource extends JsonResource
             'game_id' => $this->game_id,
             'current_node_id' => $this->current_node_id,
             'mode' => $this->mode,
-            'state_history' => $this->state_history,
+            'state_histories' => $this->stateHistories,
             'dynamic_state' => $this->dynamic_state,
             'current_node' => new StoryNodeResource($this->whenLoaded('currentNode')),
             'created_at' => $this->created_at,

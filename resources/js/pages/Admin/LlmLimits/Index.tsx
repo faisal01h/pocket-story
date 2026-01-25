@@ -55,7 +55,16 @@ export default function Index({ limits }: { limits: any }) {
                                             <tr key={limit.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
                                                 <td className="px-6 py-4">{limit.id}</td>
                                                 <td className="px-6 py-4">{limit.user?.name || 'All Users'}</td>
-                                                <td className="px-6 py-4 font-medium">{limit.model_name || 'All Models'}</td>
+                                                <td className="px-6 py-4 font-medium">
+                                                    {limit.llm_model ? (
+                                                        <span>
+                                                            {limit.llm_model.name}
+                                                            <span className="ml-2 text-[10px] text-gray-400 uppercase">({limit.llm_model.provider?.name})</span>
+                                                        </span>
+                                                    ) : (
+                                                        'All Models'
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 capitalize">{limit.period}</td>
                                                 <td className="px-6 py-4 font-mono">{limit.max_tokens.toLocaleString()}</td>
                                                 <td className="px-6 py-4">

@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { BreadcrumbItem } from '@/types';
 import { ArrowLeft } from 'lucide-react';
 
-export default function Edit({ limit, users }: { limit: any, users: any[] }) {
+export default function Edit({ limit, users, providers }: { limit: any, users: any[], providers: any[] }) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'LLM Limits', href: '/admin/llm-limits' },
@@ -18,7 +18,7 @@ export default function Edit({ limit, users }: { limit: any, users: any[] }) {
 
     const { data, setData, put, processing, errors } = useForm({
         user_id: (limit.user_id?.toString() || null) as string | null,
-        model_name: limit.model_name as string | null,
+        llm_model_id: (limit.llm_model_id?.toString() || null) as string | null,
         period: limit.period,
         max_tokens: limit.max_tokens,
         is_active: !!limit.is_active,
@@ -69,22 +69,28 @@ export default function Edit({ limit, users }: { limit: any, users: any[] }) {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="model_name">Model (Optional - empty for all models)</Label>
-                                    <Select value={data.model_name || 'all'} onValueChange={(val) => setData('model_name', val === 'all' ? null : val)}>
+                                    <Label htmlFor="llm_model_id">Model (Optional - empty for all models)</Label>
+                                    <Select value={data.llm_model_id || 'all'} onValueChange={(val) => setData('llm_model_id', val === 'all' ? null : val)}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select a model" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="all">All Models</SelectItem>
-                                            <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
-                                            <SelectItem value="gemini-2.0-pro">Gemini 2.0 Pro</SelectItem>
-                                            <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
-                                            <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                                            <SelectItem value="gemini-exp-1206">Gemini experimental</SelectItem>
-                                            <SelectItem value="gemini-3-pro-preview">Gemini 3 Pro (Preview)</SelectItem>
+                                            {providers.map((provider: any) => (
+                                                <div key={provider.id}>
+                                                    <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-400">
+                                                        {provider.name}
+                                                    </div>
+                                                    {provider.models?.map((model: any) => (
+                                                        <SelectItem key={model.id} value={model.id.toString()}>
+                                                            {model.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </div>
+                                            ))}
                                         </SelectContent>
                                     </Select>
-                                    {errors.model_name && <p className="text-sm text-red-500">{errors.model_name}</p>}
+                                    {errors.llm_model_id && <p className="text-sm text-red-500">{errors.llm_model_id}</p>}
                                 </div>
 
                                 <div className="space-y-2">
