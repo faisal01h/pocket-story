@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\RedeemCodeUsage;
 use App\Models\RemoteLlmRequest;
 use App\Models\User;
-use App\Services\GoogleGenAIService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -76,7 +75,7 @@ class UserController extends Controller
             ->with('success', 'User roles updated successfully.');
     }
 
-    public function summarize(User $user, GoogleGenAIService $aiService)
+    public function summarize(User $user)
     {
         // Gather user data for analysis
         $sessions = $user->gameSessions()->with(['game', 'stateHistories'])->latest()->take(5)->get();
@@ -99,6 +98,7 @@ class UserController extends Controller
         ];
 
         try {
+            $aiService = \App\Services\LlmServiceFactory::make('gemini-2.5-pro'); // Default to a pro model for summary
             $summary = $aiService->summarizeUserActivity(json_encode($data), 'gemini-2.5-pro', auth()->id());
 
             return redirect()

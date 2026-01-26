@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\GameSessionResource;
 use App\Models\Game;
 use App\Models\GameSession;
-use App\Services\GoogleGenAIService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -62,7 +61,7 @@ class GamePlayController extends Controller
         return new GameSessionResource($play);
     }
 
-    public function action(Request $request, Game $game, GameSession $play, GoogleGenAIService $aiService): \Illuminate\Http\JsonResponse|GameSessionResource
+    public function action(Request $request, Game $game, GameSession $play): \Illuminate\Http\JsonResponse|GameSessionResource
     {
         Gate::authorize('view', $game);
 
@@ -78,7 +77,7 @@ class GamePlayController extends Controller
             'model' => 'nullable|string',
         ]);
 
-        if ($validated['action_type'] === 'choice') {
+        if ($validated['action_type'] === 'choice' && $play->mode !== 'llm') {
             $targetNodeId = $validated['target_node_id'] ?? null;
             $choiceLabel = null;
 
@@ -103,6 +102,14 @@ class GamePlayController extends Controller
             }
         } elseif ($validated['action_type'] === 'text' && $play->mode === 'llm') {
             $history = $play->stateHistories;
+            
+            // Apply history logic consistent with web controller
+            if ($play->history_summary) {
+                $history = $play->stateHistories()->latest('id')->take(6)->get()->reverse();
+            } else {
+                $history = $play->stateHistories;
+            }
+
             $historyStr = json_encode($history->map(fn ($item) => [
                 'role' => $item->role,
                 'content' => $item->content,
@@ -110,7 +117,9 @@ class GamePlayController extends Controller
             $contextNodes = $game->storyNodes()->take(5)->get()->toJson();
 
             try {
-                $result = $aiService->generateNextState(
+                $aiService = \App\Services\LlmServiceFactory::make($validated['model'] ?? null);
+                
+                $responseContent = $aiService->generateNextState(
                     $historyStr,
                     $validated['input_text'],
                     $contextNodes,
@@ -119,19 +128,6 @@ class GamePlayController extends Controller
                     $play->id,
                     $game->llm_guidelines
                 );
-
-                $responseContent = null;
-                if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-                    $raw = $result['candidates'][0]['content']['parts'][0]['text'];
-                    $responseContent = json_decode($raw, true);
-
-                    // Fallback if AI wrapped in markdown or just string
-                    if (! $responseContent) {
-                        $raw = preg_replace('/^```json/', '', $raw);
-                        $raw = preg_replace('/```$/', '', $raw);
-                        $responseContent = json_decode($raw, true);
-                    }
-                }
 
                 if ($responseContent) {
                     $play->stateHistories()->createMany([
@@ -187,6 +183,83 @@ class GamePlayController extends Controller
         $play->update([
             'mode' => $validated['mode'],
         ]);
+
+        return new GameSessionResource($play->load('currentNode.choices'));
+    }
+
+    public function regenerate(Request $request, Game $game, GameSession $play): \Illuminate\Http\JsonResponse|GameSessionResource
+    {
+        Gate::authorize('view', $game);
+
+        if ($play->user_id !== auth()->id() || $play->game_id !== $game->id) {
+            abort(403);
+        }
+
+        if ($play->mode !== 'llm') {
+            return response()->json(['error' => 'Regeneration is only available in LLM mode.'], 400);
+        }
+
+        $lastHistory = $play->stateHistories()->latest('id')->first();
+        if (!$lastHistory || $lastHistory->role !== 'model') {
+            return response()->json(['error' => 'No LLM response found to regenerate.'], 400);
+        }
+
+        $lastUserMessage = $play->stateHistories()
+            ->where('role', 'user')
+            ->where('id', '<', $lastHistory->id)
+            ->latest('id')
+            ->first();
+
+        if (!$lastUserMessage) {
+            return response()->json(['error' => 'No user input found to regenerate from.'], 400);
+        }
+
+        // Delete the last model response to regenerate it
+        $lastHistory->delete();
+
+        $history = $play->stateHistories;
+        if ($play->history_summary) {
+            $history = $play->stateHistories()->latest('id')->take(6)->get()->reverse();
+        }
+
+        $historyStr = json_encode($history->map(fn ($item) => [
+            'role' => $item->role,
+            'content' => $item->content,
+        ])->toArray());
+        
+        $contextNodes = $game->storyNodes()->take(5)->get()->toJson();
+
+        try {
+            $validated = $request->validate([
+                'model' => 'nullable|string',
+            ]);
+
+            $aiService = \App\Services\LlmServiceFactory::make($validated['model'] ?? null);
+            
+            $responseContent = $aiService->generateNextState(
+                $historyStr,
+                $lastUserMessage->content,
+                $contextNodes,
+                $validated['model'] ?? null,
+                auth()->id(),
+                $play->id,
+                $game->llm_guidelines
+            );
+
+            if ($responseContent) {
+                $play->stateHistories()->create([
+                    'role' => 'model', 
+                    'content' => $responseContent['content']
+                ]);
+
+                $play->update([
+                    'current_node_id' => null,
+                    'dynamic_state' => $responseContent,
+                ]);
+            }
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'AI Generation failed: '.$e->getMessage()], 500);
+        }
 
         return new GameSessionResource($play->load('currentNode.choices'));
     }

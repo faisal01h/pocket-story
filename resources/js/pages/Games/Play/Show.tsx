@@ -48,6 +48,7 @@ export default function Play({ game, session, currentNode, dynamicState, availab
             choice_id: choice.id || null,
             target_node_id: choice.target_node_id || null,
             input_text: choice.target_node_id ? null : choice.label,
+            model: selectedModel,
         });
     };
 

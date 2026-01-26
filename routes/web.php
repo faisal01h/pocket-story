@@ -26,6 +26,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Admin Routes
     Route::get('admin/llm-requests', [\App\Http\Controllers\Admin\LlmRequestController::class, 'index'])->name('admin.llm-requests.index');
     Route::get('admin/llm-requests/{llmRequest}', [\App\Http\Controllers\Admin\LlmRequestController::class, 'show'])->name('admin.llm-requests.show');
+    Route::resource('admin/llm-providers', \App\Http\Controllers\Admin\LlmProviderController::class)->names([
+        'index' => 'admin.llm-providers.index',
+        'create' => 'admin.llm-providers.create',
+        'store' => 'admin.llm-providers.store',
+        'edit' => 'admin.llm-providers.edit',
+        'update' => 'admin.llm-providers.update',
+        'destroy' => 'admin.llm-providers.destroy',
+    ]);
+    Route::resource('admin/llm-models', \App\Http\Controllers\Admin\LlmModelController::class)->names([
+        'index' => 'admin.llm-models.index',
+        'create' => 'admin.llm-models.create',
+        'store' => 'admin.llm-models.store',
+        'edit' => 'admin.llm-models.edit',
+        'update' => 'admin.llm-models.update',
+        'destroy' => 'admin.llm-models.destroy',
+    ]);
     Route::resource('admin/llm-limits', \App\Http\Controllers\Admin\LlmLimitController::class)->names([
         'index' => 'admin.llm-limits.index',
         'create' => 'admin.llm-limits.create',
@@ -68,7 +84,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('admin/users/{user}/summarize', [\App\Http\Controllers\Admin\UserController::class, 'summarize'])->name('admin.users.summarize');
 
     Route::get('redeem', function () {
-        return \Inertia\Inertia::render('Dashboard/Redeem');
+        return Inertia::render('Dashboard/Redeem');
     })->name('redeem.index');
     Route::post('redeem', [\App\Http\Controllers\RedeemCodeController::class, 'redeem'])->name('redeem.store');
 });

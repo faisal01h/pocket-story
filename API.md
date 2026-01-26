@@ -74,6 +74,34 @@ Revokes the current access token.
 
 ---
 
+## LLM Models
+
+### List Available Models
+`GET /api/llm-models` (Protected)
+
+Returns a list of active LLM models that can be used for gameplay.
+
+**Response:**
+```json
+{
+    "data": [
+        {
+            "id": 1,
+            "name": "Gemini 1.5 Flash",
+            "identifier": "gemini-1.5-flash",
+            "provider": {
+                "id": 1,
+                "name": "Google AI Studio",
+                "slug": "google-ai-studio"
+            },
+            "is_active": true
+        }
+    ]
+}
+```
+
+---
+
 ## Games
 
 ### List Games

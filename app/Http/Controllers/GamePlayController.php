@@ -69,7 +69,7 @@ class GamePlayController extends Controller
         ]);
     }
 
-    public function action(Request $request, \App\Models\Game $game, \App\Models\GameSession $play, \App\Services\GoogleGenAIService $aiService)
+    public function action(Request $request, \App\Models\Game $game, \App\Models\GameSession $play)
     {
         \Illuminate\Support\Facades\Gate::authorize('view', $game);
 
@@ -129,7 +129,9 @@ class GamePlayController extends Controller
         $contextNodes = $game->storyNodes()->take(5)->get()->toJson(); // Simplified context
 
         try {
-            $result = $aiService->generateNextState(
+            $aiService = \App\Services\LlmServiceFactory::make($validated['model'] ?? null);
+
+            $responseContent = $aiService->generateNextState(
                 $historyStr,
                 $validated['input_text'],
                 $contextNodes,
@@ -138,19 +140,6 @@ class GamePlayController extends Controller
                 $session->id,
                 $game->llm_guidelines // Pass system prompt
             );
-
-            $responseContent = isset($result['candidates'][0]['content']['parts'][0]['text'])
-                ? json_decode($result['candidates'][0]['content']['parts'][0]['text'], true)
-                : null;
-
-            // Fallback parsing if JSON inside string
-            if (! $responseContent && isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-                // Try to strip markdown code blocks
-                $raw = $result['candidates'][0]['content']['parts'][0]['text'];
-                $raw = preg_replace('/^```json/', '', $raw);
-                $raw = preg_replace('/```$/', '', $raw);
-                $responseContent = json_decode($raw, true);
-            }
 
             if ($responseContent) {
                 // Update session history
@@ -213,7 +202,7 @@ class GamePlayController extends Controller
         return redirect()->back();
     }
 
-    public function regenerate(Request $request, \App\Models\Game $game, \App\Models\GameSession $play, \App\Services\GoogleGenAIService $aiService)
+    public function regenerate(Request $request, \App\Models\Game $game, \App\Models\GameSession $play)
     {
         \Illuminate\Support\Facades\Gate::authorize('view', $game);
 
@@ -277,7 +266,9 @@ class GamePlayController extends Controller
                     }
                     \Illuminate\Support\Facades\Log::info('Using model for regeneration: '.($modelIdentifier ?: 'default'));
 
-                    $result = $aiService->generateNextState(
+                    $aiService = \App\Services\LlmServiceFactory::make($modelIdentifier);
+
+                    $responseContent = $aiService->generateNextState(
                         $historyStr,
                         $lastUserMessage->content,
                         $contextNodes,
@@ -286,14 +277,6 @@ class GamePlayController extends Controller
                         $play->id,
                         $game->llm_guidelines
                     );
-
-                    $responseContent = null;
-                    if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-                        $raw = $result['candidates'][0]['content']['parts'][0]['text'];
-                        $raw = preg_replace('/^```json/', '', $raw);
-                        $raw = preg_replace('/```$/', '', $raw);
-                        $responseContent = json_decode($raw, true);
-                    }
 
                     if ($responseContent) {
                         $play->stateHistories()->create([

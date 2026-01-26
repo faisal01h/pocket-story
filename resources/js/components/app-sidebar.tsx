@@ -14,7 +14,7 @@ import { dashboard } from '@/routes';
 import games from '@/routes/games';
 import type { NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Activity, ShieldCheck, Compass, Joystick, Ticket, ShieldAlert, Key, Users } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, Activity, ShieldCheck, Compass, Joystick, Ticket, ShieldAlert, Key, Users, Server, Cpu } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -37,6 +37,16 @@ const mainNavItems: NavItem[] = [
         title: 'Users',
         href: '/admin/users',
         icon: Users,
+    },
+    {
+        title: 'LLM Providers',
+        href: '/admin/llm-providers',
+        icon: Server,
+    },
+    {
+        title: 'LLM Models',
+        href: '/admin/llm-models',
+        icon: Cpu,
     },
     {
         title: 'LLM Requests',

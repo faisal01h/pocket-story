@@ -63,6 +63,21 @@ class LlmProviderSeeder extends Seeder
                     ],
                 ],
             ],
+            [
+                'name' => 'Vertex AI',
+                'slug' => 'vertex-ai',
+                'base_url' => 'https://{region}-aiplatform.googleapis.com/v1/projects/{project}/locations/{region}/publishers/google/models/{model}:generateContent',
+                'models' => [
+                    [
+                        'name' => 'Gemini 1.5 Flash (Vertex)',
+                        'identifier' => 'gemini-1.5-flash',
+                    ],
+                    [
+                        'name' => 'Gemini 1.5 Pro (Vertex)',
+                        'identifier' => 'gemini-1.5-pro',
+                    ],
+                ],
+            ],
         ];
 
         foreach ($providers as $pData) {
