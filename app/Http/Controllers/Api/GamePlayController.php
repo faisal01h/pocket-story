@@ -61,6 +61,21 @@ class GamePlayController extends Controller
         return new GameSessionResource($play);
     }
 
+    public function history(Game $game, GameSession $play): \Illuminate\Http\JsonResponse
+    {
+        Gate::authorize('view', $game);
+
+        if ($play->user_id !== auth()->id() || $play->game_id !== $game->id) {
+            abort(403);
+        }
+
+        $history = $play->stateHistories()
+            ->latest()
+            ->paginate();
+
+        return response()->json($history);
+    }
+
     public function action(Request $request, Game $game, GameSession $play): \Illuminate\Http\JsonResponse|GameSessionResource
     {
         Gate::authorize('view', $game);
@@ -77,7 +92,7 @@ class GamePlayController extends Controller
             'model' => 'nullable|string',
         ]);
 
-        if ($validated['action_type'] === 'choice' && $play->mode !== 'llm') {
+        if ($validated['action_type'] === 'choice') {
             $targetNodeId = $validated['target_node_id'] ?? null;
             $choiceLabel = null;
 
@@ -102,7 +117,7 @@ class GamePlayController extends Controller
             }
         } elseif ($validated['action_type'] === 'text' && $play->mode === 'llm') {
             $history = $play->stateHistories;
-            
+
             // Apply history logic consistent with web controller
             if ($play->history_summary) {
                 $history = $play->stateHistories()->latest('id')->take(6)->get()->reverse();
@@ -118,7 +133,34 @@ class GamePlayController extends Controller
 
             try {
                 $aiService = \App\Services\LlmServiceFactory::make($validated['model'] ?? null);
-                
+
+                // Check if streaming is enabled
+                if (config('app.llm_communication_method') === 'websocket') {
+                    // Create user message in history first
+                    $play->stateHistories()->create([
+                        'role' => 'user',
+                        'content' => $validated['input_text'],
+                    ]);
+
+                    // Trigger streaming in background (response will be broadcasted)
+                    $aiService->generateNextState(
+                        $historyStr,
+                        $validated['input_text'],
+                        $contextNodes,
+                        $validated['model'] ?? null,
+                        auth()->id(),
+                        $play->id,
+                        $game->llm_guidelines
+                    );
+
+                    // Return immediately with streaming indicator
+                    return response()->json([
+                        'streaming' => true,
+                        'session_id' => $play->id,
+                        'message' => 'Response is being streamed via WebSocket',
+                    ]);
+                }
+
                 $responseContent = $aiService->generateNextState(
                     $historyStr,
                     $validated['input_text'],
@@ -195,12 +237,16 @@ class GamePlayController extends Controller
             abort(403);
         }
 
+        if (! ($game->settings['allow_llm_regeneration'] ?? false)) {
+            return response()->json(['error' => 'Regeneration is not allowed for this game.'], 403);
+        }
+
         if ($play->mode !== 'llm') {
             return response()->json(['error' => 'Regeneration is only available in LLM mode.'], 400);
         }
 
         $lastHistory = $play->stateHistories()->latest('id')->first();
-        if (!$lastHistory || $lastHistory->role !== 'model') {
+        if (! $lastHistory || $lastHistory->role !== 'model') {
             return response()->json(['error' => 'No LLM response found to regenerate.'], 400);
         }
 
@@ -210,7 +256,7 @@ class GamePlayController extends Controller
             ->latest('id')
             ->first();
 
-        if (!$lastUserMessage) {
+        if (! $lastUserMessage) {
             return response()->json(['error' => 'No user input found to regenerate from.'], 400);
         }
 
@@ -226,7 +272,7 @@ class GamePlayController extends Controller
             'role' => $item->role,
             'content' => $item->content,
         ])->toArray());
-        
+
         $contextNodes = $game->storyNodes()->take(5)->get()->toJson();
 
         try {
@@ -235,7 +281,28 @@ class GamePlayController extends Controller
             ]);
 
             $aiService = \App\Services\LlmServiceFactory::make($validated['model'] ?? null);
-            
+
+            // Check if streaming is enabled
+            if (config('app.llm_communication_method') === 'websocket') {
+                // Trigger streaming in background (response will be broadcasted)
+                $aiService->generateNextState(
+                    $historyStr,
+                    $lastUserMessage->content,
+                    $contextNodes,
+                    $validated['model'] ?? null,
+                    auth()->id(),
+                    $play->id,
+                    $game->llm_guidelines
+                );
+
+                // Return immediately with streaming indicator
+                return response()->json([
+                    'streaming' => true,
+                    'session_id' => $play->id,
+                    'message' => 'Response is being regenerated via WebSocket',
+                ]);
+            }
+
             $responseContent = $aiService->generateNextState(
                 $historyStr,
                 $lastUserMessage->content,
@@ -248,8 +315,8 @@ class GamePlayController extends Controller
 
             if ($responseContent) {
                 $play->stateHistories()->create([
-                    'role' => 'model', 
-                    'content' => $responseContent['content']
+                    'role' => 'model',
+                    'content' => $responseContent['content'],
                 ]);
 
                 $play->update([

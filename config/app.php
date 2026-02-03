@@ -123,4 +123,18 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | LLM Communication Method
+    |--------------------------------------------------------------------------
+    |
+    | These configuration options determine the rate limit settings for the
+    | application.
+    |
+    | Supported values: "http", "websocket"
+    |
+    */
+
+    'llm_communication_method' => env('LLM_COMMUNICATION_METHOD', 'http'),
+
 ];

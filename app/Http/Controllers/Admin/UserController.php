@@ -15,6 +15,8 @@ class UserController extends Controller
 {
     public function index(Request $request): Response
     {
+        \Illuminate\Support\Facades\Gate::authorize('viewAny', User::class);
+
         $query = User::query();
 
         if ($request->search) {
@@ -37,6 +39,8 @@ class UserController extends Controller
 
     public function show(User $user): Response
     {
+        \Illuminate\Support\Facades\Gate::authorize('view', $user);
+
         $user->load([
             'roles',
             'gameSessions' => fn ($q) => $q->with('game')->latest()->take(10),
@@ -63,6 +67,8 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        \Illuminate\Support\Facades\Gate::authorize('update', $user);
+
         $validated = $request->validate([
             'roles' => 'array',
             'roles.*' => 'string|exists:roles,name',
@@ -77,6 +83,8 @@ class UserController extends Controller
 
     public function summarize(User $user)
     {
+        \Illuminate\Support\Facades\Gate::authorize('analyze', $user);
+
         // Gather user data for analysis
         $sessions = $user->gameSessions()->with(['game', 'stateHistories'])->latest()->take(5)->get();
         $requests = RemoteLlmRequest::where('user_id', $user->id)->latest()->take(20)->get();
@@ -98,8 +106,8 @@ class UserController extends Controller
         ];
 
         try {
-            $aiService = \App\Services\LlmServiceFactory::make('gemini-2.5-pro'); // Default to a pro model for summary
-            $summary = $aiService->summarizeUserActivity(json_encode($data), 'gemini-2.5-pro', auth()->id());
+            $aiService = \App\Services\LlmServiceFactory::make('gemini-2.5-flash'); // Default to a pro model for summary
+            $summary = $aiService->summarizeUserActivity(json_encode($data), 'gemini-2.5-flash', auth()->id());
 
             return redirect()
                 ->route('admin.users.show', $user)

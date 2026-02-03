@@ -28,53 +28,15 @@ class LlmProviderSeeder extends Seeder
                         'identifier' => 'gemini-2.5-pro',
                         'endpoint_url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
                     ],
-                ],
-            ],
-            [
-                'name' => 'Anthropic',
-                'slug' => 'anthropic',
-                'base_url' => 'https://api.anthropic.com/v1/',
-                'models' => [
                     [
-                        'name' => 'Claude 3.5 Sonnet',
-                        'identifier' => 'claude-3-5-sonnet-20240620',
-                    ],
-                ],
-            ],
-            [
-                'name' => 'OpenAI',
-                'slug' => 'openai',
-                'base_url' => 'https://api.openai.com/v1/',
-                'models' => [
-                    [
-                        'name' => 'GPT-4o',
-                        'identifier' => 'gpt-4o',
-                    ],
-                ],
-            ],
-            [
-                'name' => 'Ollama',
-                'slug' => 'ollama',
-                'base_url' => 'http://localhost:11434/api/',
-                'models' => [
-                    [
-                        'name' => 'Llama 3',
-                        'identifier' => 'llama3',
-                    ],
-                ],
-            ],
-            [
-                'name' => 'Vertex AI',
-                'slug' => 'vertex-ai',
-                'base_url' => 'https://{region}-aiplatform.googleapis.com/v1/projects/{project}/locations/{region}/publishers/google/models/{model}:generateContent',
-                'models' => [
-                    [
-                        'name' => 'Gemini 1.5 Flash (Vertex)',
-                        'identifier' => 'gemini-1.5-flash',
+                        'name' => 'Gemini 3 Pro (Preview)',
+                        'identifier' => 'gemini-3-pro-preview',
+                        'endpoint_url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent',
                     ],
                     [
-                        'name' => 'Gemini 1.5 Pro (Vertex)',
-                        'identifier' => 'gemini-1.5-pro',
+                        'name' => 'Gemini 3 Flash',
+                        'identifier' => 'gemini-3-flash',
+                        'endpoint_url' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent',
                     ],
                 ],
             ],

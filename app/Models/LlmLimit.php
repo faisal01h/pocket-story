@@ -10,6 +10,8 @@ class LlmLimit extends Model
         'user_id',
         'llm_model_id',
         'period',
+        'period_hours',
+        'resets_at',
         'max_tokens',
         'is_active',
     ];
@@ -22,5 +24,20 @@ class LlmLimit extends Model
     public function llmModel()
     {
         return $this->belongsTo(LlmModel::class);
+    }
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'resets_at' => 'datetime',
+            'is_active' => 'boolean',
+            'max_tokens' => 'integer',
+            'period_hours' => 'integer',
+        ];
     }
 }

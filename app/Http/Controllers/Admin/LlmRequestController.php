@@ -14,6 +14,8 @@ class LlmRequestController extends Controller
      */
     public function index(): Response
     {
+        \Illuminate\Support\Facades\Gate::authorize('viewAny', RemoteLlmRequest::class);
+
         $requests = RemoteLlmRequest::with(['user', 'llmModel.provider'])
             ->latest()
             ->paginate(15);
@@ -28,6 +30,8 @@ class LlmRequestController extends Controller
      */
     public function show(RemoteLlmRequest $llmRequest): Response
     {
+        \Illuminate\Support\Facades\Gate::authorize('view', $llmRequest);
+
         $llmRequest->load(['user', 'gameSession.game', 'llmModel.provider']);
 
         return Inertia::render('Admin/LlmRequests/Show', [

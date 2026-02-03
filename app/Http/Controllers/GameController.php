@@ -11,6 +11,8 @@ class GameController extends Controller
      */
     public function index()
     {
+        \Illuminate\Support\Facades\Gate::authorize('viewAny', \App\Models\Game::class);
+
         return \Inertia\Inertia::render('Games/Index', [
             'games' => \App\Models\Game::where('user_id', auth()->id())->latest()->get(),
         ]);
@@ -21,6 +23,8 @@ class GameController extends Controller
      */
     public function create()
     {
+        \Illuminate\Support\Facades\Gate::authorize('create', \App\Models\Game::class);
+
         return \Inertia\Inertia::render('Games/Create');
     }
 
@@ -88,7 +92,7 @@ class GameController extends Controller
             'settings' => 'nullable|array',
             'llm_guidelines' => 'nullable|string',
             'is_public' => 'boolean',
-            'slug' => 'nullable|string|unique:games,slug,' . $game->id,
+            'slug' => 'nullable|string|unique:games,slug,'.$game->id,
         ]);
 
         $game->update($validated);

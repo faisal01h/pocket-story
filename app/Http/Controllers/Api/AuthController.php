@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\UserRegistered;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -24,6 +25,8 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
+
+        UserRegistered::dispatch($user);
 
         return response()->json([
             'token' => $user->createToken($request->device_name)->plainTextToken,
@@ -60,8 +63,8 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out successfully']);
     }
 
-    public function user(Request $request): \Illuminate\Http\JsonResponse
+    public function user(Request $request): \App\Http\Resources\UserResource
     {
-        return response()->json($request->user());
+        return new \App\Http\Resources\UserResource($request->user());
     }
 }

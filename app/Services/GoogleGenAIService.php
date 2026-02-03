@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\LlmResponseStreaming;
 use App\Models\GameSession;
 use App\Models\LlmModel;
 use Exception;
@@ -37,6 +38,20 @@ class GoogleGenAIService extends LlmService
         ?int $gameSessionId = null,
         ?string $systemInstruction = null
     ): array {
+        // Check if streaming is enabled via configuration
+        if (config('app.llm_communication_method') === 'websocket' && $gameSessionId) {
+            return $this->generateNextStateStreaming(
+                $history,
+                $userAction,
+                $contextNodesJson,
+                $model,
+                $userId,
+                $gameSessionId,
+                $systemInstruction
+            );
+        }
+
+        // Continue with HTTP-based implementation
         // Resolve model if identifier passed
         if ($model) {
             $this->llmModel = LlmModel::where('identifier', $model)
@@ -95,7 +110,7 @@ class GoogleGenAIService extends LlmService
             ]);
 
         if ($response->failed()) {
-            throw new Exception('Google AI API Failed: ' . ($response->body() ?: 'Empty response'));
+            throw new Exception('Google AI API Failed: '.($response->body() ?: 'Empty response'));
         }
 
         $result = $response->json();
@@ -236,5 +251,170 @@ EOT;
         }
 
         return $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    }
+
+    /**
+     * Generate the next state with streaming via WebSocket.
+     *
+     * @throws Exception
+     */
+    protected function generateNextStateStreaming(
+        string $history,
+        string $userAction,
+        string $contextNodesJson,
+        ?string $model = null,
+        ?int $userId = null,
+        ?int $gameSessionId = null,
+        ?string $systemInstruction = null
+    ): array {
+        // Resolve model if identifier passed
+        if ($model) {
+            $this->llmModel = LlmModel::where('identifier', $model)
+                ->whereHas('provider', function ($q) {
+                    $q->where('slug', 'google-ai-studio');
+                })
+                ->first();
+        }
+
+        // Ensure we have a model
+        if (! $this->llmModel) {
+            $this->llmModel = LlmModel::where('identifier', 'gemini-2.5-flash')
+                ->whereHas('provider', function ($q) {
+                    $q->where('slug', 'google-ai-studio');
+                })
+                ->first();
+        }
+
+        if (! $this->llmModel) {
+            throw new Exception('Google AI model configuration is missing in database.');
+        }
+
+        $modelIdentifier = $this->llmModel->identifier;
+
+        if ($userId) {
+            $this->checkLimits($userId, $this->llmModel->id);
+        }
+
+        $apiKey = $this->llmModel->provider->api_key;
+        // Use streamGenerateContent endpoint for streaming
+        $baseUrl = $this->llmModel->endpoint_url ?: str_replace('{model}', $modelIdentifier, $this->llmModel->provider->base_url);
+        $url = str_replace(':generateContent', ':streamGenerateContent', $baseUrl);
+
+        // Fetch session data if available for RAG and Summary
+        $session = $gameSessionId ? GameSession::find($gameSessionId) : null;
+        $summary = $session?->history_summary;
+        $memories = $session ? $this->retrieveContext($session, $userAction) : '';
+
+        $prompt = $this->constructPrompt($history, $userAction, $contextNodesJson, $systemInstruction, $summary, $memories);
+
+        // Stream the response
+        $fullResponseText = '';
+        $inputTokenCount = 0;
+        $outputTokenCount = 0;
+
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+            ])
+                ->timeout(90)
+                ->post("{$url}?key={$apiKey}&alt=sse", [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $prompt],
+                            ],
+                        ],
+                    ],
+                    'generationConfig' => [
+                        'responseMimeType' => 'application/json',
+                        'candidateCount' => 1,
+                        'temperature' => 0.95,
+                    ],
+                ]);
+
+            if ($response->failed()) {
+                throw new Exception('Google AI API Failed: '.($response->body() ?: 'Empty response'));
+            }
+
+            // Parse the streaming response (Server-Sent Events format)
+            $body = $response->body();
+            $lines = explode("\n", $body);
+
+            foreach ($lines as $line) {
+                if (empty($line) || ! str_starts_with($line, 'data: ')) {
+                    continue;
+                }
+
+                $data = substr($line, 6); // Remove 'data: ' prefix
+                $chunk = json_decode($data, true);
+
+                if (! $chunk) {
+                    continue;
+                }
+
+                // Extract text from the chunk
+                $text = $chunk['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
+                if ($text) {
+                    $fullResponseText .= $text;
+
+                    // Broadcast the token
+                    event(new LlmResponseStreaming(
+                        sessionId: $gameSessionId,
+                        token: $text,
+                        done: false
+                    ));
+                }
+
+                // Extract token counts from usage metadata
+                if (isset($chunk['usageMetadata'])) {
+                    $inputTokenCount = $chunk['usageMetadata']['promptTokenCount'] ?? $inputTokenCount;
+                    $outputTokenCount = $chunk['usageMetadata']['candidatesTokenCount'] ?? $outputTokenCount;
+                }
+            }
+
+            // Send final "done" event
+            event(new LlmResponseStreaming(
+                sessionId: $gameSessionId,
+                token: null,
+                done: true,
+                metadata: [
+                    'input_tokens' => $inputTokenCount,
+                    'output_tokens' => $outputTokenCount,
+                ]
+            ));
+
+            // Parse the accumulated response
+            $result = $this->parseJson($fullResponseText ?: '{}');
+
+            if ($userId && $gameSessionId) {
+                $this->logRequest(
+                    $userId,
+                    $gameSessionId,
+                    $this->llmModel->id,
+                    $prompt,
+                    $fullResponseText,
+                    $inputTokenCount,
+                    $outputTokenCount
+                );
+
+                // Periodically summarize and extract long-term memory/knowledge
+                if ($fullResponseText && $session) {
+                    $this->handlePeriodicTasks($session, $fullResponseText);
+                }
+            }
+
+            return $result;
+        } catch (Exception $e) {
+            // Broadcast error
+            event(new LlmResponseStreaming(
+                sessionId: $gameSessionId,
+                token: null,
+                done: true,
+                metadata: ['error' => $e->getMessage()]
+            ));
+
+            throw $e;
+        }
     }
 }

@@ -18,13 +18,22 @@ class RoleSeeder extends Seeder
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
         // Create initial permissions
-        $permissions = [
-            'manage games',
-            'manage users',
-            'manage privileges',
-            'manage llm',
-            'play games',
-        ];
+        $permissions = collect([
+            'game.view', // play games
+            'game.edit',
+            'game.create',
+            'game.delete', // soft delete
+            'game.llm', // privilege to toggle enable LLM mode
+            'game.llm-mode', // play game with LLM mode
+            'user.view', // view all user data
+            'user.edit',
+            'user.delete', // soft delete
+            'user.analyze', // user ai summary analysis
+            'privilege.manage',
+            'llm.provider.manage',
+            'llm.limit.manage',
+            'llm.request.view',
+        ]);
 
         foreach ($permissions as $permission) {
             Permission::findOrCreate($permission);
@@ -36,10 +45,20 @@ class RoleSeeder extends Seeder
         $superAdmin = Role::findOrCreate('Super Admin');
 
         $admin = Role::findOrCreate('Administrator');
-        $admin->syncPermissions(['manage games', 'manage users', 'manage llm', 'play games']);
+        $admin->syncPermissions($permissions);
 
         $userRole = Role::findOrCreate('User');
-        $userRole->syncPermissions(['play games']);
+        $userRole->syncPermissions($permissions->only([
+            'game.view',
+            'game.edit',
+            'game.create',
+            'game.delete',
+        ]));
+        $plusUserRole = Role::findOrCreate('PlusUser');
+        $plusUserRole->syncPermissions($permissions->only([
+            'game.llm',
+            'game.llm-mode',
+        ]));
 
         // Assign Super Admin to first user if exists
         $user = User::first();

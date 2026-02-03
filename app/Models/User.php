@@ -60,4 +60,37 @@ class User extends Authenticatable
     {
         return $this->hasMany(GameSession::class);
     }
+
+    public function subscriptions()
+    {
+        return $this->hasMany(UserSubscription::class);
+    }
+
+    public function activeSubscription()
+    {
+        return $this->hasOne(UserSubscription::class)
+            ->where('status', 'active')
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->latest('starts_at');
+    }
+
+    /**
+     * Get the user's current subscription plan, or default free plan.
+     */
+    public function getSubscriptionPlan(): ?SubscriptionPlan
+    {
+        return $this->activeSubscription?->subscriptionPlan
+            ?? SubscriptionPlan::where('slug', 'free')->first();
+    }
+
+    /**
+     * Check if user has an active subscription.
+     */
+    public function hasActiveSubscription(): bool
+    {
+        return $this->activeSubscription !== null;
+    }
 }

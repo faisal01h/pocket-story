@@ -45,9 +45,9 @@ abstract class LlmService
     {
         $text = preg_replace('/^```json\s*/', '', $text);
         $text = preg_replace('/\s*```$/', '', $text);
-        
+
         $data = json_decode($text, true);
-        
+
         return is_array($data) ? $data : $default;
     }
 
@@ -129,7 +129,7 @@ EOT;
                 foreach ($keywords as $word) {
                     if (strlen($word) > 3) {
                         $query->orWhere('content', 'like', "%{$word}%")
-                              ->orWhere('key', 'like', "%{$word}%");
+                            ->orWhere('key', 'like', "%{$word}%");
                     }
                 }
             })
@@ -244,6 +244,14 @@ EOT;
         int $inputTokenCount,
         int $outputTokenCount
     ): RemoteLlmRequest {
+        \Log::info('Logging LLM request', [
+            'user_id' => $userId,
+            'game_session_id' => $gameSessionId,
+            'llm_model_id' => $llmModelId,
+            'input_token_count' => $inputTokenCount,
+            'output_token_count' => $outputTokenCount,
+        ]);
+
         return RemoteLlmRequest::create([
             'user_id' => $userId,
             'game_session_id' => $gameSessionId,
@@ -263,8 +271,13 @@ EOT;
         $historyCount = $session->stateHistories()->count();
         // Every 3 user chats (6 messages: 3 user + 3 model)
         if ($historyCount % 6 === 0 && $historyCount > 0) {
+            \Log::info('Handling periodic tasks', [
+                'user_id' => $session->user_id,
+                'game_session_id' => $session->id,
+                'history_count' => $historyCount,
+            ]);
             $recentHistory = $session->stateHistories()->latest('id')->take(6)->get()->reverse();
-            $historySegment = $recentHistory->map(fn($h) => "{$h->role}: {$h->content}")->implode("\n");
+            $historySegment = $recentHistory->map(fn ($h) => "{$h->role}: {$h->content}")->implode("\n");
 
             $this->extractMemories($session, $historySegment);
             $this->extractKnowledge($session, $historySegment);

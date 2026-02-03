@@ -31,7 +31,26 @@ Creates a new user account and returns an API token.
     "user": {
         "id": 1,
         "name": "Faisal",
-        "email": "test@example.com"
+        "email": "test@example.com",
+        "avatar": "https://ui-avatars.com/api/?name=Faisal&color=7F9CF5&background=EBF4FF"
+    }
+}
+```
+
+### User Profile
+`GET /api/user` (Protected)
+
+Returns the authenticated user's profile information.
+
+**Response:**
+```json
+{
+    "data": {
+        "id": 1,
+        "name": "Faisal",
+        "email": "test@example.com",
+        "avatar": "https://ui-avatars.com/api/?name=Faisal&color=7F9CF5&background=EBF4FF",
+        "created_at": "2026-02-03T09:00:00.000000Z"
     }
 }
 ```
@@ -101,6 +120,60 @@ Returns a list of active LLM models that can be used for gameplay.
 ```
 
 ---
+
+---
+
+## Subscriptions
+
+### List Plans
+`GET /api/subscriptions` (Protected)
+
+Returns available subscription plans and the user's current subscription status.
+
+**Response:**
+```json
+{
+    "plans": [
+        {
+            "id": 1,
+            "name": "Pro Plan",
+            "slug": "pro-monthly",
+            "price": 50000,
+            "currency": "IDR",
+            "billing_period": "monthly",
+            "max_tokens": 100000,
+            "is_active": true
+        }
+    ],
+    "current_subscription": {
+        "id": 5,
+        "status": "active",
+        "starts_at": "2024-03-01T10:00:00.000000Z",
+        "expires_at": "2024-04-01T10:00:00.000000Z"
+    }
+}
+```
+
+### Subscribe
+`POST /api/subscriptions` (Protected)
+
+Creates a new subscription for the user and returns a payment invoice.
+
+**Request Body:**
+```json
+{
+    "subscription_plan_id": 1
+}
+```
+
+**Response:**
+```json
+{
+    "message": "Subscription created successfully. Please proceed to payment.",
+    "invoice_url": "https://checkout.xendit.co/web/65e...",
+    "expires_at": "2024-03-02T10:05:00.000Z"
+}
+```
 
 ## Games
 
@@ -214,3 +287,53 @@ Toggles between `standard` and `llm` modes.
 `POST /api/games/{game_id}/play/{session_id}/restart` (Protected)
 
 Resets the session to the game's start node and clears all history.
+
+---
+
+## History
+
+### Chat History
+`GET /api/games/{game_id}/play/{session_id}/history` (Protected)
+
+Returns the full chat history for a specific game session.
+
+**Response:**
+```json
+{
+    "data": [
+        {
+            "id": 101,
+            "role": "assistant",
+            "content": "You see a flickering light...",
+            "created_at": "2026-02-03T10:00:00.000000Z"
+        },
+        {
+            "id": 102,
+            "role": "user",
+            "content": "Investigate light",
+            "created_at": "2026-02-03T10:01:00.000000Z"
+        }
+    ]
+}
+```
+
+### Redeem History
+`GET /api/redeem/history` (Protected)
+
+Returns a list of redeeming codes used by the user.
+
+**Response:**
+```json
+{
+    "data": [
+        {
+            "id": 5,
+            "code": "WELCOME2026",
+            "llm_model": "Gemini 1.5 Flash",
+            "period": "monthly",
+            "max_tokens": 100000,
+            "redeemed_at": "2026-02-01T12:00:00.000000Z"
+        }
+    ]
+}
+```

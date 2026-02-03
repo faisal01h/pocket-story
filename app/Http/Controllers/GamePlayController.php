@@ -45,6 +45,11 @@ class GamePlayController extends Controller
             abort(403);
         }
 
+        // Check if user can play in LLM mode
+        if ($play->mode === 'llm' && ! \Illuminate\Support\Facades\Gate::allows('useLlmMode', $game)) {
+            abort(403, 'You do not have permission to use LLM mode.');
+        }
+
         // Heal logic for sessions without a starting node
         if (! $play->current_node_id && ! $play->dynamic_state) {
             $startNode = $game->storyNodes()->where('is_start_node', true)->first();
@@ -112,7 +117,7 @@ class GamePlayController extends Controller
         }
         // LLM Generation
         $history = $session->stateHistories();
-        
+
         // If we have a summary, we only need the recent history (e.g., last 5 messages)
         if ($session->history_summary) {
             $history = $history->latest('id')->take(6)->get()->reverse();
@@ -123,13 +128,39 @@ class GamePlayController extends Controller
         $historyStr = json_encode($history->map(fn ($item) => [
             'role' => $item->role,
             'content' => $item->content,
-        ])->toArray());
+        ])
+            ->values()
+            ->toArray()
+        );
 
         // Get nearby nodes for context
         $contextNodes = $game->storyNodes()->take(5)->get()->toJson(); // Simplified context
 
         try {
             $aiService = \App\Services\LlmServiceFactory::make($validated['model'] ?? null);
+
+            // Check if streaming is enabled
+            if (config('app.llm_communication_method') === 'websocket') {
+                // Create user message in history first
+                $session->stateHistories()->create([
+                    'role' => 'user',
+                    'content' => $validated['input_text'],
+                ]);
+
+                // Trigger streaming in background (response will be broadcasted)
+                $aiService->generateNextState(
+                    $historyStr,
+                    $validated['input_text'],
+                    $contextNodes,
+                    $validated['model'] ?? null,
+                    auth()->id(),
+                    $session->id,
+                    $game->llm_guidelines
+                );
+
+                // Return immediately - client will receive updates via WebSocket
+                return back()->with('streaming', true);
+            }
 
             $responseContent = $aiService->generateNextState(
                 $historyStr,
@@ -195,6 +226,11 @@ class GamePlayController extends Controller
             'mode' => 'required|string|in:standard,llm',
         ]);
 
+        // Check if switching to LLM mode - requires enableLlm permission
+        if ($validated['mode'] === 'llm') {
+            \Illuminate\Support\Facades\Gate::authorize('enableLlm', $game);
+        }
+
         $play->update([
             'mode' => $validated['mode'],
         ]);
@@ -238,7 +274,7 @@ class GamePlayController extends Controller
 
                 // The prompt should include everything BEFORE this user message
                 $historyWithoutLastQuery = $play->stateHistories()->where('id', '<', $lastUserMessage->id);
-                
+
                 if ($play->history_summary) {
                     $historyWithoutLast = $historyWithoutLastQuery->latest('id')->take(6)->get()->reverse();
                 } else {
@@ -267,6 +303,25 @@ class GamePlayController extends Controller
                     \Illuminate\Support\Facades\Log::info('Using model for regeneration: '.($modelIdentifier ?: 'default'));
 
                     $aiService = \App\Services\LlmServiceFactory::make($modelIdentifier);
+
+                    // Check if streaming is enabled
+                    if (config('app.llm_communication_method') === 'websocket') {
+                        // Trigger streaming in background (response will be broadcasted)
+                        $aiService->generateNextState(
+                            $historyStr,
+                            $lastUserMessage->content,
+                            $contextNodes,
+                            $modelIdentifier,
+                            auth()->id(),
+                            $play->id,
+                            $game->llm_guidelines
+                        );
+
+                        \Illuminate\Support\Facades\Log::info('Regeneration triggered via streaming for session: '.$play->id);
+
+                        // Return immediately - client will receive updates via WebSocket
+                        return back()->with('streaming', true)->with('success', 'Response is being regenerated...');
+                    }
 
                     $responseContent = $aiService->generateNextState(
                         $historyStr,
@@ -312,5 +367,58 @@ class GamePlayController extends Controller
         }
 
         return redirect()->back();
+    }
+
+    public function editResponse(Request $request, \App\Models\Game $game, \App\Models\GameSession $play)
+    {
+        \Illuminate\Support\Facades\Gate::authorize('view', $game);
+
+        if ($play->user_id !== auth()->id() || $play->game_id !== $game->id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'history_id' => 'required|exists:game_session_state_histories,id',
+            'content' => 'required|string|max:10000',
+        ]);
+
+        // Find the state history entry
+        $stateHistory = \App\Models\GameSessionStateHistory::where('id', $validated['history_id'])
+            ->where('game_session_id', $play->id)
+            ->first();
+
+        if (! $stateHistory) {
+            return back()->withErrors(['error' => 'History entry not found']);
+        }
+
+        // Only allow editing model responses
+        if ($stateHistory->role !== 'model') {
+            return back()->withErrors(['error' => 'Only AI responses can be edited']);
+        }
+
+        // Update the content
+        $stateHistory->update([
+            'content' => $validated['content'],
+        ]);
+
+        // If this is the most recent model response, update dynamic_state as well
+        $latestModelResponse = $play->stateHistories()->where('role', 'model')->latest('id')->first();
+
+        if ($latestModelResponse && $latestModelResponse->id === $stateHistory->id) {
+            // Update dynamic state with the new content
+            $currentDynamicState = $play->dynamic_state;
+            if ($currentDynamicState && is_array($currentDynamicState)) {
+                $currentDynamicState['content'] = $validated['content'];
+                $play->update(['dynamic_state' => $currentDynamicState]);
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('User edited LLM response', [
+            'user_id' => auth()->id(),
+            'game_session_id' => $play->id,
+            'history_id' => $stateHistory->id,
+        ]);
+
+        return back()->with('success', 'Response updated successfully');
     }
 }

@@ -15,6 +15,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('discover', [\App\Http\Controllers\DiscoveryController::class, 'index'])->name('discovery.index');
     Route::post('discover/join', [\App\Http\Controllers\DiscoveryController::class, 'join'])->name('discovery.join');
 
+    // Subscription routes
+    Route::get('subscription', [\App\Http\Controllers\SubscriptionController::class, 'index'])->name('subscription.index');
+    Route::get('subscription/current', [\App\Http\Controllers\SubscriptionController::class, 'show'])->name('subscription.show');
+    Route::post('subscription/subscribe', [\App\Http\Controllers\SubscriptionController::class, 'subscribe'])->name('subscription.subscribe');
+    Route::post('subscription/cancel', [\App\Http\Controllers\SubscriptionController::class, 'cancel'])->name('subscription.cancel');
+
     Route::resource('games', \App\Http\Controllers\GameController::class);
     Route::resource('story-nodes', \App\Http\Controllers\StoryNodeController::class)->only(['store', 'update', 'destroy']);
     Route::resource('games.play', \App\Http\Controllers\GamePlayController::class)->only(['index', 'store', 'show']);
@@ -22,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('games/{game}/play/{play}/restart', [\App\Http\Controllers\GamePlayController::class, 'restart'])->name('games.play.restart');
     Route::post('games/{game}/play/{play}/switch-mode', [\App\Http\Controllers\GamePlayController::class, 'switchMode'])->name('games.play.switch-mode');
     Route::post('games/{game}/play/{play}/regenerate', [\App\Http\Controllers\GamePlayController::class, 'regenerate'])->name('games.play.regenerate');
+    Route::post('games/{game}/play/{play}/edit-response', [\App\Http\Controllers\GamePlayController::class, 'editResponse'])->name('games.play.edit-response');
 
     // Admin Routes
     Route::get('admin/llm-requests', [\App\Http\Controllers\Admin\LlmRequestController::class, 'index'])->name('admin.llm-requests.index');
@@ -82,6 +89,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         'destroy' => 'admin.users.destroy',
     ]);
     Route::post('admin/users/{user}/summarize', [\App\Http\Controllers\Admin\UserController::class, 'summarize'])->name('admin.users.summarize');
+    Route::resource('admin/subscription-plans', \App\Http\Controllers\Admin\SubscriptionPlanController::class)->names([
+        'index' => 'admin.subscription-plans.index',
+        'create' => 'admin.subscription-plans.create',
+        'store' => 'admin.subscription-plans.store',
+        'edit' => 'admin.subscription-plans.edit',
+        'update' => 'admin.subscription-plans.update',
+        'destroy' => 'admin.subscription-plans.destroy',
+    ]);
 
     Route::get('redeem', function () {
         return Inertia::render('Dashboard/Redeem');

@@ -12,7 +12,7 @@ class GamePolicy
      */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->can('game.view');
     }
 
     /**
@@ -20,7 +20,7 @@ class GamePolicy
      */
     public function view(User $user, Game $game): bool
     {
-        return $user->id === $game->user_id;
+        return $user->can('game.view') && $user->id === $game->user_id;
     }
 
     /**
@@ -28,7 +28,7 @@ class GamePolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->can('game.create');
     }
 
     /**
@@ -36,7 +36,7 @@ class GamePolicy
      */
     public function update(User $user, Game $game): bool
     {
-        return $user->id === $game->user_id;
+        return $user->can('game.edit') && $user->id === $game->user_id;
     }
 
     /**
@@ -44,7 +44,7 @@ class GamePolicy
      */
     public function delete(User $user, Game $game): bool
     {
-        return $user->id === $game->user_id;
+        return $user->can('game.delete') && $user->id === $game->user_id;
     }
 
     /**
@@ -61,5 +61,21 @@ class GamePolicy
     public function forceDelete(User $user, Game $game): bool
     {
         return false;
+    }
+
+    /**
+     * Determine whether the user can enable/disable LLM mode.
+     */
+    public function enableLlm(User $user, Game $game): bool
+    {
+        return $user->can('game.llm') && $user->id === $game->user_id;
+    }
+
+    /**
+     * Determine whether the user can play games with LLM mode.
+     */
+    public function useLlmMode(User $user): bool
+    {
+        return $user->can('game.llm-mode');
     }
 }

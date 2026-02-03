@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useState, useEffect, useRef } from 'react';
-import { action, restart, switchMode, regenerate } from '@/routes/games/play';
-import { RefreshCw, Send, History, Cpu, User as UserIcon, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
+import { action, restart, switchMode, regenerate, editResponse } from '@/routes/games/play';
+import { RefreshCw, Send, History, Cpu, User as UserIcon, MessageSquare, ChevronDown, ChevronUp, Edit2, Check, X } from 'lucide-react';
 import { BreadcrumbItem } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,6 +18,8 @@ export default function Play({ game, session, currentNode, dynamicState, availab
     const [selectedModel, setSelectedModel] = useState(availableModels[0]?.identifier || 'gemini-2.5-flash');
     const [showHistory, setShowHistory] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+    const [editedContent, setEditedContent] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const history = session.state_histories || [];
@@ -80,6 +82,30 @@ export default function Play({ game, session, currentNode, dynamicState, availab
         if (isProcessing) return;
         router.post(regenerate.url([game.id, session.id]), {
             model: selectedModel,
+        });
+    };
+
+    const handleEditStart = (messageId: number, currentContent: string) => {
+        setEditingMessageId(messageId);
+        setEditedContent(currentContent);
+    };
+
+    const handleEditCancel = () => {
+        setEditingMessageId(null);
+        setEditedContent('');
+    };
+
+    const handleEditSave = (messageId: number) => {
+        if (isProcessing || !editedContent.trim()) return;
+
+        router.post(editResponse.url([game.id, session.id]), {
+            history_id: messageId,
+            content: editedContent,
+        }, {
+            onSuccess: () => {
+                setEditingMessageId(null);
+                setEditedContent('');
+            }
         });
     };
 
@@ -164,16 +190,60 @@ export default function Play({ game, session, currentNode, dynamicState, availab
                                         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-b pb-2">Adventure Log</div>
                                         {history.map((msg: any, i: number) => (
                                             <div key={i} className={`flex gap-3 text-sm ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                                                <div className={`max-w-[80%] p-3 rounded-2xl ${msg.role === 'user'
+                                                <div className={`max-w-[80%] p-3 rounded-2xl relative group ${msg.role === 'user'
                                                     ? 'bg-indigo-600 text-white rounded-tr-none'
                                                     : 'bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-tl-none shadow-sm'
                                                     }`}>
-                                                    <div className="text-[9px] font-bold opacity-50 mb-1 uppercase tracking-tighter">
-                                                        {msg.role === 'user' ? 'You' : 'Narrator'}
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <div className="text-[9px] font-bold opacity-50 uppercase tracking-tighter">
+                                                            {msg.role === 'user' ? 'You' : 'Narrator'}
+                                                        </div>
+                                                        {msg.role === 'model' && editingMessageId !== msg.id && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleEditStart(msg.id, msg.content)}
+                                                                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 dark:hover:bg-gray-600"
+                                                            >
+                                                                <Edit2 className="h-3 w-3" />
+                                                            </Button>
+                                                        )}
                                                     </div>
-                                                    <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
-                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                                                    </div>
+                                                    {editingMessageId === msg.id ? (
+                                                        <div className="space-y-2">
+                                                            <textarea
+                                                                value={editedContent}
+                                                                onChange={(e) => setEditedContent(e.target.value)}
+                                                                className="w-full min-h-[100px] p-2 text-xs rounded border dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 font-mono"
+                                                                autoFocus
+                                                            />
+                                                            <div className="flex gap-2 justify-end">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={handleEditCancel}
+                                                                    className="h-6 text-[10px] gap-1"
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                    Cancel
+                                                                </Button>
+                                                                <Button
+                                                                    variant="default"
+                                                                    size="sm"
+                                                                    onClick={() => handleEditSave(msg.id)}
+                                                                    className="h-6 text-[10px] gap-1 bg-indigo-600 hover:bg-indigo-700"
+                                                                    disabled={isProcessing || !editedContent.trim()}
+                                                                >
+                                                                    <Check className="h-3 w-3" />
+                                                                    Save
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed">
+                                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
