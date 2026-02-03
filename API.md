@@ -288,6 +288,35 @@ Toggles between `standard` and `llm` modes.
 
 Resets the session to the game's start node and clears all history.
 
+### Regenerate Response
+`POST /api/games/{game_id}/play/{session_id}/regenerate` (Protected)
+
+Regenerates the last AI response. Only available if `allow_llm_regeneration` is enabled in game settings and the session is in `llm` mode.
+
+**Request Body:**
+```json
+{
+    "model": "gemini-1.5-flash" 
+}
+```
+
+**Response:**
+Returns the updated `GameSessionResource`.
+
+### Edit Response
+`POST /api/games/{game_id}/play/{session_id}/edit-response` (Protected)
+
+Manually edits a specific AI response in the session history.
+
+**Request Body:**
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `history_id` | integer | Yes | The ID of the history entry to edit |
+| `content` | string | Yes | The new content for the response |
+
+**Response:**
+Returns the updated `GameSessionResource`.
+
 ---
 
 ## History

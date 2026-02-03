@@ -550,6 +550,55 @@
 					}
 				},
 				{
+					"name": "Edit LLM Response",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"history_id\": 1,\n    \"content\": \"I have edited this response manually.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/games/:game_id/play/:play_id/edit-response",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"games",
+								":game_id",
+								"play",
+								":play_id",
+								"edit-response"
+							],
+							"variable": [
+								{
+									"key": "game_id",
+									"value": "1"
+								},
+								{
+									"key": "play_id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
 					"name": "Switch Mode",
 					"request": {
 						"method": "POST",

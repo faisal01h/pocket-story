@@ -330,4 +330,46 @@ class GamePlayController extends Controller
 
         return new GameSessionResource($play->load('currentNode.choices'));
     }
+
+    public function editResponse(Request $request, Game $game, GameSession $play): \Illuminate\Http\JsonResponse|GameSessionResource
+    {
+        Gate::authorize('view', $game);
+
+        if ($play->user_id !== auth()->id() || $play->game_id !== $game->id) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'history_id' => 'required|exists:game_session_state_histories,id',
+            'content' => 'required|string|max:10000',
+        ]);
+
+        $stateHistory = \App\Models\GameSessionStateHistory::where('id', $validated['history_id'])
+            ->where('game_session_id', $play->id)
+            ->first();
+
+        if (! $stateHistory) {
+            return response()->json(['error' => 'History entry not found'], 404);
+        }
+
+        if ($stateHistory->role !== 'model') {
+            return response()->json(['error' => 'Only AI responses can be edited'], 400);
+        }
+
+        $stateHistory->update([
+            'content' => $validated['content'],
+        ]);
+
+        $latestModelResponse = $play->stateHistories()->where('role', 'model')->latest('id')->first();
+
+        if ($latestModelResponse && $latestModelResponse->id === $stateHistory->id) {
+            $currentDynamicState = $play->dynamic_state;
+            if ($currentDynamicState && is_array($currentDynamicState)) {
+                $currentDynamicState['content'] = $validated['content'];
+                $play->update(['dynamic_state' => $currentDynamicState]);
+            }
+        }
+
+        return new GameSessionResource($play->load('currentNode.choices'));
+    }
 }
